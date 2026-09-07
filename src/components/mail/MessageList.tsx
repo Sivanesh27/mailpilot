@@ -37,26 +37,9 @@ export function MessageList() {
     fetchMessages(folder, searchQuery);
   };
 
-  // Filter messages based on active quick filters
+  // Messages are queried directly from Gmail; optimistic unread check keeps UI instant
   const filteredMessages = messages.filter((msg) => {
     if (filters.unread && msg.isRead) return false;
-    if (
-      filters.sender &&
-      !msg.from.email.toLowerCase().includes(filters.sender.toLowerCase()) &&
-      !msg.from.name?.toLowerCase().includes(filters.sender.toLowerCase())
-    ) {
-      return false;
-    }
-    if (filters.dateFrom) {
-      const msgDate = new Date(msg.date);
-      const fromDate = new Date(filters.dateFrom);
-      if (msgDate < fromDate) return false;
-    }
-    if (filters.dateTo) {
-      const msgDate = new Date(msg.date);
-      const toDate = new Date(filters.dateTo);
-      if (msgDate > toDate) return false;
-    }
     return true;
   });
 

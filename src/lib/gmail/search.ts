@@ -23,8 +23,13 @@ function formatGmailDate(dateStr: string): string {
 /**
  * Compiles a structured MailFilter object into a safe, validated Gmail search query string.
  */
-export function compileFilterToGmailQuery(filters: MailFilter): string {
+export function compileFilterToGmailQuery(filters: MailFilter, baseQuery?: string): string {
   const parts: string[] = [];
+
+  if (baseQuery && baseQuery.trim()) {
+    const cleanBase = sanitizeSearchTerm(baseQuery.trim());
+    if (cleanBase) parts.push(cleanBase);
+  }
 
   // Sender filter: from:(term)
   if (filters.sender && filters.sender.trim()) {

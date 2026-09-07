@@ -213,7 +213,9 @@ export async function listGmailMessages(
   // Fetch full details concurrently (up to 25 items)
   const detailPromises = listData.messages.slice(0, max).map(async (item) => {
     try {
-      const msgRes = await client.fetchGmail(`/messages/${item.id}?format=full`);
+      const msgRes = await client.fetchGmail(
+        `/messages/${item.id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=Cc&metadataHeaders=Bcc`
+      );
       if (!msgRes.ok) return null;
       const raw: GmailRawMessage = await msgRes.json();
       return formatGmailMessage(raw);

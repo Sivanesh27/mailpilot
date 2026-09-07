@@ -55,6 +55,14 @@ export const useAssistantStore = create<AssistantStoreState>((set, get) => ({
       openThreadId: mailState.selectedMessage?.threadId || null,
       filters: mailState.filters,
       composeDraft: mailState.composeDraft,
+      visibleMessages: mailState.messages.slice(0, 15).map((m) => ({
+        id: m.id,
+        subject: m.subject,
+        from: m.from.name ? `${m.from.name} <${m.from.email}>` : m.from.email,
+        snippet: m.snippet,
+        date: m.date,
+        isRead: m.isRead,
+      })),
     };
 
     try {

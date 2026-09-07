@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { EmailMessage, MailFolder, MailFilter, ComposeDraft, SyncStatusState } from '@/types/mail';
+import { compileFilterToGmailQuery } from '@/lib/gmail/search';
 
 interface MailStoreState {
   folder: MailFolder;
@@ -85,6 +86,10 @@ export const useMailStore = create<MailStoreState>((set, get) => ({
       selectedMessageId: message?.id || null,
       mobilePane: message ? 'detail' : 'list',
     });
+    // If message does not have full body yet, load full detail
+    if (message && !message.bodyHtml && !message.bodyText) {
+      get().selectMessageById(message.id);
+    }
     // Mark as read locally for optimistic UI
     if (message && !message.isRead) {
       set((state) => ({
@@ -96,7 +101,7 @@ export const useMailStore = create<MailStoreState>((set, get) => ({
 
   selectMessageById: async (id: string) => {
     const existing = get().messages.find((m) => m.id === id);
-    if (existing) {
+    if (existing && (existing.bodyHtml || existing.bodyText)) {
       get().selectMessage(existing);
       return;
     }
@@ -107,7 +112,10 @@ export const useMailStore = create<MailStoreState>((set, get) => ({
       if (res.ok) {
         const data = await res.json();
         if (data.message) {
-          get().selectMessage(data.message);
+          set((state) => ({
+            selectedMessage: data.message,
+            messages: state.messages.map((m) => (m.id === id ? { ...m, ...data.message } : m)),
+          }));
         }
       }
     } catch (err) {
@@ -118,14 +126,14 @@ export const useMailStore = create<MailStoreState>((set, get) => ({
   },
 
   setFilters: (newFilters) => {
-    set((state) => ({
-      filters: { ...state.filters, ...newFilters },
-    }));
+    const updated = { ...get().filters, ...newFilters };
+    set({ filters: updated });
+    get().fetchMessages(get().folder);
   },
 
   clearFilters: () => {
     set({ filters: emptyFilters, searchQuery: '' });
-    get().fetchMessages();
+    get().fetchMessages(get().folder, '');
   },
 
   setSearchQuery: (query) => {
@@ -227,14 +235,15 @@ export const useMailStore = create<MailStoreState>((set, get) => ({
 
   fetchMessages: async (folderParam, queryParam) => {
     const currentFolder = folderParam || get().folder;
-    const currentQuery = queryParam !== undefined ? queryParam : get().searchQuery;
+    const rawQuery = queryParam !== undefined ? queryParam : get().searchQuery;
+    const compiledQuery = compileFilterToGmailQuery(get().filters, rawQuery);
 
     set({ loading: true });
     try {
       const params = new URLSearchParams();
       params.set('folder', currentFolder);
-      if (currentQuery) {
-        params.set('q', currentQuery);
+      if (compiledQuery) {
+        params.set('q', compiledQuery);
       }
 
       const res = await fetch(`/api/mail/messages?${params.toString()}`);
