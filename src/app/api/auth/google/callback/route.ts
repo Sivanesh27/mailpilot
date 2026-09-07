@@ -1,10 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { exchangeCodeForTokens } from '@/lib/auth/google';
+import { exchangeCodeForTokensWithVerifier } from '@/lib/auth/google';
 import { prisma } from '@/lib/db/prisma';
 import { encryptToken } from '@/lib/security/crypto';
-import { setSessionCookie } from '@/lib/auth/session';
+import {
+  attachSessionCookie,
+  clearOAuthCookiesOnResponse,
+  OAUTH_STATE_COOKIE_NAME,
+  OAUTH_VERIFIER_COOKIE_NAME,
+  getAndClearOAuthCookies,
+} from '@/lib/auth/session';
 
 export const dynamic = 'force-dynamic';
+
+function getRequestOrigin(req: NextRequest): string {
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host');
+  const proto = req.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
+  if (host) {
+    return `${proto}://${host}`;
+  }
+  return req.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+}
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
@@ -23,11 +38,37 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Retrieve state and PKCE verifier from request cookies with fallback to cookieStore
+  const cookieState = req.cookies.get(OAUTH_STATE_COOKIE_NAME)?.value;
+  const cookieVerifier = req.cookies.get(OAUTH_VERIFIER_COOKIE_NAME)?.value;
+
+  let savedState = cookieState;
+  let verifier = cookieVerifier;
+
+  if (!savedState || !verifier) {
+    const fromStore = await getAndClearOAuthCookies();
+    savedState = savedState || fromStore.state || undefined;
+    verifier = verifier || fromStore.verifier || undefined;
+  }
+
+  if (!savedState || savedState !== state) {
+    console.error('OAuth State Mismatch: savedState=', savedState, 'returnedState=', state);
+    return NextResponse.redirect(
+      new URL('/login?error=Invalid+or+expired+OAuth+state+parameter+(CSRF+protection)', req.nextUrl)
+    );
+  }
+
+  if (!verifier) {
+    return NextResponse.redirect(
+      new URL('/login?error=Missing+PKCE+code+verifier+in+session', req.nextUrl)
+    );
+  }
+
   try {
-    const { tokens, profile } = await exchangeCodeForTokens(code, state);
+    const origin = getRequestOrigin(req);
+    const { tokens, profile } = await exchangeCodeForTokensWithVerifier(code, verifier, origin);
 
     if (!tokens.refresh_token) {
-      // If user has already consented before, Google may not send refresh_token unless prompt=consent was used
       console.warn('Warning: Google did not return a refresh token. Existing account may retain previous refresh token.');
     }
 
@@ -89,14 +130,20 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Set signed HTTP-only session cookie
-    await setSessionCookie({
+    // Create redirect response directly to /mail
+    const res = NextResponse.redirect(new URL('/mail', req.nextUrl));
+
+    // Explicitly attach signed session cookie to response headers
+    attachSessionCookie(res, {
       userId: user.id,
       email: user.email,
       googleSubject: user.googleSubject,
     });
 
-    return NextResponse.redirect(new URL('/mail', req.nextUrl));
+    // Explicitly clear temporary OAuth cookies
+    clearOAuthCookiesOnResponse(res);
+
+    return res;
   } catch (err: unknown) {
     console.error('OAuth Callback Error:', err);
     return NextResponse.redirect(

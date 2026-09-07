@@ -13,15 +13,16 @@ const SCOPES = [
   'https://www.googleapis.com/auth/gmail.modify',
 ];
 
-export function getRedirectUri(): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  return `${appUrl.replace(/\/$/, '')}/api/auth/google/callback`;
+export function getRedirectUri(origin?: string): string {
+  const base = origin || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  return `${base.replace(/\/$/, '')}/api/auth/google/callback`;
 }
 
 /**
- * Generates the Google OAuth authorization URL with PKCE and state protection.
+ * Generates OAuth state, PKCE verifier/challenge, and authorization URL.
+ * Does not mutate cookies directly; caller can attach cookies to its response.
  */
-export async function createGoogleAuthUrl(): Promise<string> {
+export function generateGoogleAuthParams(origin?: string): { authUrl: string; state: string; verifier: string } {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   if (!clientId) {
     throw new Error('GOOGLE_CLIENT_ID environment variable is missing');
@@ -31,11 +32,9 @@ export async function createGoogleAuthUrl(): Promise<string> {
   const challenge = generateCodeChallenge(verifier);
   const state = generateStateToken();
 
-  await setOAuthCookies(state, verifier);
-
   const params = new URLSearchParams({
     client_id: clientId,
-    redirect_uri: getRedirectUri(),
+    redirect_uri: getRedirectUri(origin),
     response_type: 'code',
     scope: SCOPES.join(' '),
     access_type: 'offline',
@@ -45,26 +44,30 @@ export async function createGoogleAuthUrl(): Promise<string> {
     state,
   });
 
-  return `${GOOGLE_AUTH_ENDPOINT}?${params.toString()}`;
+  return {
+    authUrl: `${GOOGLE_AUTH_ENDPOINT}?${params.toString()}`,
+    state,
+    verifier,
+  };
 }
 
 /**
- * Exchanges the authorization code for access and refresh tokens.
+ * Generates the Google OAuth authorization URL and sets cookies on the async store.
  */
-export async function exchangeCodeForTokens(
+export async function createGoogleAuthUrl(origin?: string): Promise<string> {
+  const { authUrl, state, verifier } = generateGoogleAuthParams(origin);
+  await setOAuthCookies(state, verifier);
+  return authUrl;
+}
+
+/**
+ * Exchanges the authorization code for tokens with an explicit PKCE code verifier and origin.
+ */
+export async function exchangeCodeForTokensWithVerifier(
   code: string,
-  returnedState: string
+  verifier: string,
+  origin?: string
 ): Promise<{ tokens: GoogleTokenResponse; profile: GoogleUserProfile }> {
-  const { state: savedState, verifier } = await getAndClearOAuthCookies();
-
-  if (!savedState || savedState !== returnedState) {
-    throw new Error('Invalid or expired OAuth state parameter (CSRF protection)');
-  }
-
-  if (!verifier) {
-    throw new Error('Missing PKCE code verifier in session');
-  }
-
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
@@ -76,7 +79,7 @@ export async function exchangeCodeForTokens(
     code,
     client_id: clientId,
     client_secret: clientSecret,
-    redirect_uri: getRedirectUri(),
+    redirect_uri: getRedirectUri(origin),
     grant_type: 'authorization_code',
     code_verifier: verifier,
   });
@@ -107,6 +110,27 @@ export async function exchangeCodeForTokens(
   const profile: GoogleUserProfile = await profileRes.json();
 
   return { tokens, profile };
+}
+
+/**
+ * Exchanges the authorization code for access and refresh tokens using cookie store.
+ */
+export async function exchangeCodeForTokens(
+  code: string,
+  returnedState: string,
+  origin?: string
+): Promise<{ tokens: GoogleTokenResponse; profile: GoogleUserProfile }> {
+  const { state: savedState, verifier } = await getAndClearOAuthCookies();
+
+  if (!savedState || savedState !== returnedState) {
+    throw new Error('Invalid or expired OAuth state parameter (CSRF protection)');
+  }
+
+  if (!verifier) {
+    throw new Error('Missing PKCE code verifier in session');
+  }
+
+  return exchangeCodeForTokensWithVerifier(code, verifier, origin);
 }
 
 /**
