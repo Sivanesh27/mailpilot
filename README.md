@@ -1,207 +1,386 @@
-# MailPilot — AI Action-Taking Web Mail Client
+<div align="center">
 
-> A production-grade, Gmail-backed web mail client where an AI assistant is a **real action-taking copilot**, not a chatbot. Every instruction produces visible UI state transitions or real mail actions (opening compose, animated field typing, inbox filtering, message navigation, send confirmation). Deployable entirely on free tiers.
+<img src="./docs/screenshots/mailpilot-hero.jpg" alt="MailPilot — AI Action-Taking Mail Client" width="100%" style="border-radius: 12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);" />
+
+<br/><br/>
+
+# ✉️ MailPilot — AI Action-Taking Webmail Client
+
+**A modern, production-ready Gmail web client where an AI assistant is a real action-taking copilot that drives the UI.**
+
+[![Vercel Deployment](https://img.shields.io/badge/Live%20Demo-mailpilot--lovat.vercel.app-7c3aed?style=for-the-badge&logo=vercel&logoColor=white)](https://mailpilot-lovat.vercel.app)
+[![Next.js 14](https://img.shields.io/badge/Next.js-14.2%20App%20Router-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178c6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38bdf8?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Gemini 3.6 Flash](https://img.shields.io/badge/AI-Gemini%203.6%20Flash-4285F4?style=for-the-badge&logo=google-gemini&logoColor=white)](https://ai.google.dev/)
+[![Neon Postgres](https://img.shields.io/badge/Database-Neon%20Postgres-00e599?style=for-the-badge&logo=postgresql&logoColor=white)](https://neon.tech/)
+[![Vitest](https://img.shields.io/badge/Tests-31%2F31%20Passing-brightgreen?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+
+<br/>
+
+[🚀 **Launch Live Application**](https://mailpilot-lovat.vercel.app) &nbsp;&nbsp;•&nbsp;&nbsp; [📦 **GitHub Repository**](https://github.com/Sivanesh27/mailpilot) &nbsp;&nbsp;•&nbsp;&nbsp; [📖 **Architecture Guide**](#-system-architecture) &nbsp;&nbsp;•&nbsp;&nbsp; [⚡ **Quickstart**](#-quickstart-guide)
+
+</div>
 
 ---
 
-## Architecture Overview
+## 🌟 Overview
+
+**MailPilot** re-imagines email client interaction by turning AI into an **active operator** rather than an isolated chatbot sidebar. Instead of merely suggesting answers in text bubbles, MailPilot's AI copilot interacts directly with the unified application state:
+
+- 🪄 **Drives the UI directly**: Modifies inbox filters, searches emails, navigates messages, and prepares replies on the fly.
+- ⚡ **The "Wow" Compose Experience**: Streams draft text field-by-field into the real compose window with a human typing cadence.
+- 📬 **Real Gmail API Integration**: Connects to your real Gmail account via Google OAuth 2.0 (RFC 7636 PKCE) with history polling sync.
+- 🛡️ **Zero-Trust Security**: Tokens encrypted with **AES-256-GCM**; prompt injection defenses isolate untrusted email text.
+- 💰 **100% Free-Tier Architecture**: Engineered to run entirely on Vercel Hobby, Neon Serverless Postgres, Google Cloud free tier, and Google Gemini API free quota.
+- 🧪 **Offline Sandbox Mode**: Explore every feature with seeded realistic demo emails even without logging in!
+
+---
+
+## 📸 Screenshots & Product Tour
+
+### 1. Main Workspace & Action-Taking AI Copilot
+> The responsive 3-pane layout features quick filters, live synchronization status, and an embedded Gemini-powered copilot that can see and control your mailbox state.
+
+<p align="center">
+  <img src="./docs/screenshots/mailpilot-dashboard.png" alt="MailPilot Dashboard" width="95%" style="border-radius: 8px; border: 1px solid #2e1065;" />
+</p>
+
+---
+
+### 2. Sign-In & Offline Interactive Sandbox
+> Supports Google OAuth login with RFC 7636 PKCE protection, plus an interactive demo sandbox that lets anyone test the product with zero credentials.
+
+<p align="center">
+  <img src="./docs/screenshots/mailpilot-login.png" alt="MailPilot Login Screen" width="55%" style="border-radius: 8px; border: 1px solid #2e1065;" />
+</p>
+
+---
+
+### 3. Google OAuth 2.0 Configuration
+> Securely authorizes `https://mailpilot-lovat.vercel.app/api/auth/google/callback` with granular `gmail.modify` scope.
+
+<p align="center">
+  <img src="./docs/screenshots/google-cloud-oauth-config.png" alt="Google Cloud OAuth Config" width="55%" style="border-radius: 8px; border: 1px solid #2e1065;" />
+</p>
+
+---
+
+## 🧠 What Makes MailPilot Different?
+
+In traditional "AI email assistants", the AI is a disconnected chat widget. If you ask it to "filter unread emails", it answers: *"You can click the filter button at the top left"*.
+
+In **MailPilot**, the AI is a **direct operator** that shares the exact same Zustand state store as the user:
 
 ```
-                               +-----------------------------+
-                               |   Browser (Next.js 15 UI)   |
-                               |                             |
-                               |   +-----------------------+ |
-                               |   |   Zustand Store       | |
-                               |   | (1 Source of Truth)   | |
-                               |   +-----------+-----------+ |
-                               |         ^           ^       |
-                               |         |           |       |
-                               |   Manual UI     AI Tools    |
-                               +---------+-----------+-------+
-                                         |           |
-                                         v           v
-                               +-----------------------------+
-                               |    Next.js API Layer        |
-                               |                             |
-                               |  - Google OAuth / PKCE      |
-                               |  - Authenticated Gmail      |
-                               |  - Polling Sync Engine      |
-                               |  - Gemini Function Calling  |
-                               +------+----------+-----------+
-                                      |          |
-                   +------------------+          +------------------+
-                   v                                                v
-+-----------------------------+                             +-----------------------------+
-|    PostgreSQL (Neon)        |                             |     External Services       |
-|  - Users                    |                             |  - Gmail REST API (v1)      |
-|  - OAuthAccount (AES-GCM)   |                             |  - Google Gemini API        |
-|  - MailSyncState            |                             +-----------------------------+
-+-----------------------------+
+                  ┌────────────────────────────────────────────────────────┐
+                  │                 Centralized Mail Store                 │
+                  │                (useMailStore in Zustand)               │
+                  └───────────────────────────┬────────────────────────────┘
+                                              │
+                    ┌─────────────────────────┴─────────────────────────┐
+                    ▼                                                   ▼
+       ┌────────────────────────┐                          ┌────────────────────────┐
+       │   Human User Actions   │                          │  AI Copilot Tool Calls │
+       │  - Clicks "Unread"     │                          │  - setFilters({unread})│
+       │  - Presses 'c' (new)   │                          │  - openCompose()       │
+       │  - Types search query  │                          │  - fillCompose(...)    │
+       │  - Selects message     │                          │  - openEmail(id)       │
+       └────────────────────────┘                          └────────────────────────┘
+```
+
+Both paths mutate the same state, trigger the same animations, and update the exact same UI components.
+
+---
+
+## 🏗️ System Architecture
+
+```mermaid
+graph TD
+    subgraph Client ["Browser (Next.js 14 Client Runtime)"]
+        UI["Modern UI (Tailwind + Radix + Framer Motion)"]
+        Store["Zustand Central Store (Single Source of Truth)"]
+        Shortcuts["Keyboard Engine (c, j, k, /, Esc)"]
+        UI --> Store
+        Shortcuts --> Store
+    end
+
+    subgraph Server ["Next.js 14 Serverless API Routes"]
+        AuthRoute["/api/auth/google/* (PKCE & Session Signing)"]
+        MailRoute["/api/mail/messages (Metadata Streaming)"]
+        SendRoute["/api/mail/send (RFC 2822 MIME Builder)"]
+        SyncRoute["/api/mail/sync (History Polling Engine)"]
+        AIRoute["/api/assistant (Gemini 3.6 Flash Tool Calling)"]
+    end
+
+    subgraph External ["Free Cloud Services"]
+        Neon[("Neon Serverless Postgres\nUsers • OAuth Tokens • Sync State")]
+        GoogleOAuth["Google Cloud OAuth 2.0\nRFC 7636 PKCE"]
+        GmailAPI["Gmail REST API v1\nMessages • History • Threads"]
+        GeminiAPI["Google Gemini 3.6 Flash\nInteractions & Function Calling"]
+    end
+
+    Store <-->|"Fetch & State Dispatch"| Server
+    AuthRoute <-->|"AES-256-GCM Encrypted Tokens"| Neon
+    AuthRoute <-->|"Auth Code Exchange"| GoogleOAuth
+    MailRoute <-->|"format=metadata List Fetch"| GmailAPI
+    SendRoute <-->|"MIME base64url Dispatch"| GmailAPI
+    SyncRoute <-->|"history.list Poll (18s)"| GmailAPI
+    AIRoute <-->|"Function Calling Tools"| GeminiAPI
 ```
 
 ---
 
-## Key Features
+## 🛠️ The 11 AI Copilot Tools
 
-1. **AI Copilot Drives the Real UI State**:
-   - The assistant never manipulates the DOM directly or operates a parallel fake interface.
-   - AI tools dispatch into the exact same **Zustand store** (`useMailStore`) that manual buttons and keyboard shortcuts trigger.
-2. **The "Wow" Moment (Live Animated Field Typing)**:
-   - When the AI generates a compose draft, fields (`To`, `Subject`, `Body`) animate in live with natural human typing cadence and an active electric indicator banner.
-3. **Real Gmail Integration**:
-   - OAuth 2.0 Authorization Code flow with RFC 7636 PKCE.
-   - Real Inbox, Sent, Starred, and Drafts management with live Gmail REST API.
-   - RFC 2822 / MIME message builder with RFC 2047 encoded-word headers and URL-safe base64url dispatch.
-4. **Real-Time Polling Sync**:
-   - Polls `gmail.users.history.list` every 18 seconds while the tab is active (pauses automatically on background/blur to save quota).
-   - Gracefully recovers from expired `historyId` 404s via `/profile` resync.
-5. **Robust Security & Prompt Injection Defense**:
-   - Google tokens encrypted with **AES-256-GCM** using 96-bit IV and 128-bit authentication tags. Never sent to the browser.
-   - All email content is treated as untrusted data and sanitized before reaching the model context.
-   - Sends require explicit confirmation unless user unambiguously specified immediate sending.
-6. **Polished Design & Keyboard Accessibility**:
-   - Electric Violet & Slate visual identity with smooth light/dark mode transitions.
-   - Full keyboard shortcuts: `c` (compose), `j` / `k` (navigate list), `/` (search), `Esc` (minimize), `Cmd/Ctrl + Enter` (send).
+MailPilot exposes 11 strictly typed tool declarations to **Gemini 3.6 Flash**:
 
----
-
-## Tech Stack (100% Free-Tier Compatible)
-
-| Layer | Technology | Free Tier Notes |
+| Tool Name | Parameters | What It Does to the UI |
 |---|---|---|
-| **Framework** | Next.js 14+ (App Router) + TypeScript | Deployed on Vercel Hobby tier |
-| **Styling & Motion** | Tailwind CSS + Radix UI + Framer Motion | Modern design tokens & micro-interactions |
-| **Database** | Neon Serverless PostgreSQL + Prisma ORM | Free serverless database project |
-| **Authentication** | Google OAuth 2.0 (PKCE) + Signed Session Cookies | Google Cloud Console free web client |
-| **Mail API** | Gmail REST API (`gmail.modify` scope) | Free quota within Google API limits |
-| **AI Intelligence** | Google Gemini API (`@google/genai`) | Free tier API key from Google AI Studio |
-| **State Management**| Zustand | Single source of truth shared by UI and AI |
-| **Testing** | Vitest | 31 unit tests covering crypto, sync, and tools |
+| `openCompose` | `initialDraft?` | Opens the compose window in the bottom-right corner. |
+| `fillCompose` | `to`, `subject`, `body`, `cc`, `bcc` | Triggers the **live animated typing effect** across the form fields. |
+| `setFilters` | `unread`, `sender`, `dateFrom`, `dateTo`, `keyword` | Compiles a server-side Gmail query and refreshes the inbox view. |
+| `searchEmails` | `query`, `from`, `to`, `subject` | Populates search input and executes a full-mailbox search. |
+| `openEmail` | `messageId` | Opens the selected email in the right-side detail reading pane. |
+| `openLatestEmail`| `sender?` | Matches and navigates to the newest email from a specific contact. |
+| `prepareReply` | `messageId?`, `body` | Prefills recipient, sets `Re: [Subject]`, quotes previous body, and opens compose. |
+| `prepareForward`| `messageId?`, `to`, `body?` | Formats forwarded headers and opens compose with attachments intact. |
+| `showEmailPreview`| `messageId` | Displays an inline visual preview card inside the Copilot chat stream. |
+| `refreshInbox` | *(none)* | Triggers a live sync poll with Gmail to retrieve newly arrived messages. |
+| `sendEmail` | `to`, `subject`, `body`, `confirmed` | Dispatches email via RFC 2822 MIME. Requires **confirmation** unless overridden. |
 
 ---
 
-## Free-Tier Deployment Plan
+## 🔒 Security, Cryptography & Injection Defense
 
-### Step 1: Neon Database
-1. Go to [Neon.tech](https://neon.tech) and create a free project.
-2. Copy the PostgreSQL connection string (`DATABASE_URL`).
-3. Run migrations locally or on deployment:
-   ```bash
-   npx prisma db push
-   ```
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User Browser
+    participant App as MailPilot Next.js
+    participant DB as Neon PostgreSQL
+    participant Google as Google Cloud OAuth
 
-### Step 2: Google Cloud OAuth & Gmail API
-1. Open [Google Cloud Console](https://console.cloud.google.com).
-2. Enable the **Gmail API** (under *APIs & Services > Library*).
-3. Under *OAuth consent screen*, select External, and add scope:
-   `https://www.googleapis.com/auth/gmail.modify`
-4. Under *Credentials > Create Credentials > OAuth client ID*, select **Web application**:
-   - Authorized redirect URIs:
-     - `http://localhost:3000/api/auth/google/callback` (for local dev)
-     - `https://your-app.vercel.app/api/auth/google/callback` (for Vercel)
-5. Copy `Client ID` and `Client Secret`.
+    User->>App: Click "Continue with Google"
+    App->>App: Generate PKCE verifier + SHA-256 challenge + random state token
+    App->>User: Set-Cookie: mailpilot_oauth_state & verifier (HTTP-Only, SameSite=Lax)
+    App->>Google: Redirect to accounts.google.com/o/oauth2/v2/auth
+    Google->>User: Consent Screen (gmail.modify)
+    User->>Google: Approve
+    Google->>App: Redirect back with code & state
+    App->>App: Verify state cookie matches returned state (CSRF Protection)
+    App->>Google: Exchange code + code_verifier for Access & Refresh Tokens
+    Google-->>App: Return Tokens
+    App->>App: Encrypt Refresh Token using AES-256-GCM (96-bit IV, 128-bit Auth Tag)
+    App->>DB: Store encrypted tokens & create User record
+    App->>User: Set-Cookie: mailpilot_session (Signed HMAC-SHA256)
+    App->>User: Redirect to /mail
+```
 
-### Step 3: Google Gemini API
-1. Visit [Google AI Studio](https://aistudio.google.com/).
-2. Click **Get API key** and generate a free API key.
-
-### Step 4: Deploy to Vercel
-1. Push this repository to GitHub.
-2. Import the project into [Vercel](https://vercel.com) (Hobby Free Plan).
-3. Set the Environment Variables:
-   ```env
-   DATABASE_URL="postgresql://user:password@ep-...neon.tech/neondb?sslmode=require"
-   GOOGLE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
-   GOOGLE_CLIENT_SECRET="your-client-secret"
-   NEXT_PUBLIC_APP_URL="https://your-app.vercel.app"
-   TOKEN_ENCRYPTION_KEY="<64-hex-char-32-byte-key>"
-   SESSION_SECRET="<random-32-char-string>"
-   GEMINI_API_KEY="AIzaSy..."
-   NEXT_PUBLIC_DEMO_MODE="false"
-   ```
-4. Deploy!
+### Core Security Guarantees:
+1. **Tokens Never Reach the Browser**: Access and refresh tokens remain securely encrypted on the server with AES-256-GCM.
+2. **Prompt Injection Defense**: All third-party email contents (bodies, snippets, subjects) are wrapped in untrusted boundary blocks. The assistant system prompt explicitly forbids following instructions embedded in email bodies.
+3. **Human Confirmation Guardrail**: The AI cannot dispatch an email without explicit human confirmation in the UI, unless the user explicitly used unambiguous override phrasing (*"send it immediately without asking"*).
 
 ---
 
-## Local Development & Sandbox Mode
+## ⌨️ Keyboard Accessibility
 
-1. **Clone and Install**:
-   ```bash
-   npm install
-   ```
+Power users can navigate MailPilot completely without touching a mouse:
 
-2. **Generate Prisma Client**:
-   ```bash
-   npx prisma generate
-   ```
+| Key | Action |
+|:---:|---|
+| <kbd>c</kbd> | Open Compose Panel |
+| <kbd>j</kbd> | Navigate to Next Email in list |
+| <kbd>k</kbd> | Navigate to Previous Email in list |
+| <kbd>/</kbd> | Focus Search Bar |
+| <kbd>Esc</kbd> | Close Compose Panel or Deselect Email |
+| <kbd>Cmd</kbd> / <kbd>Ctrl</kbd> + <kbd>Enter</kbd> | Send Active Compose Draft |
 
-3. **Start Development Server**:
-   ```bash
-   npm run dev
-   ```
-   Open [http://localhost:3000](http://localhost:3000) in your browser.
+---
+
+## 💻 Tech Stack
+
+- **Frontend**: Next.js 14+ (App Router, Server & Client Components), TypeScript 5.5
+- **Styling & Animation**: Tailwind CSS, Radix UI primitives, Lucide Icons, Framer Motion
+- **State Management**: Zustand 4 (Centralized reactive state store)
+- **Database & ORM**: Neon Serverless PostgreSQL, Prisma ORM 5
+- **Authentication**: Custom OAuth 2.0 PKCE implementation + HMAC-SHA256 signed session cookies
+- **AI Intelligence**: Google Gemini 3.6 Flash (`@google/genai` SDK) with native function calling
+- **Email Infrastructure**: Gmail REST API v1 (`format=metadata` list streaming, RFC 2822 MIME builder)
+- **Testing**: Vitest (31 unit tests across 6 suites)
+- **Hosting**: Vercel (Hobby Free Plan)
+
+---
+
+## ⚡ Quickstart Guide
+
+### Prerequisites
+- Node.js 18.17+ or 20+
+- A free [Neon.tech](https://neon.tech) PostgreSQL account
+- A free [Google AI Studio](https://aistudio.google.com/) Gemini API Key
+- A [Google Cloud Console](https://console.cloud.google.com) project with **Gmail API** enabled
+
+---
+
+### 1. Clone & Install
+```bash
+git clone https://github.com/Sivanesh27/mailpilot.git
+cd mailpilot
+npm install
+```
+
+---
+
+### 2. Configure Environment Variables
+Create a `.env.local` file in the project root:
+
+```env
+# Database (Neon Serverless PostgreSQL with pooling and timeouts)
+DATABASE_URL="postgresql://neondb_owner:YOUR_PASSWORD@ep-YOUR-PROJECT-pooler.region.neon.tech/neondb?sslmode=require&connect_timeout=30&pool_timeout=30"
+
+# Google Cloud OAuth 2.0 Credentials
+GOOGLE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="your-client-secret"
+
+# App Public URL
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+
+# Cryptographic Keys (generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
+TOKEN_ENCRYPTION_KEY="64-hex-character-key"
+SESSION_SECRET="random-32-character-session-secret"
+
+# Google Gemini API Key
+GEMINI_API_KEY="AIzaSy..."
+
+# Real Gmail Mode
+NEXT_PUBLIC_DEMO_MODE="false"
+```
+
+---
+
+### 3. Initialize Database Schema
+Push the Prisma schema to your live Neon database:
+```bash
+npx prisma db push
+```
+
+---
+
+### 4. Run Development Server
+```bash
+npm run dev
+```
+Open **[http://localhost:3000](http://localhost:3000)** in your browser!
 
 > [!TIP]
-> **Instant Demo / Sandbox Mode**:
-> If external OAuth or DB credentials are not yet configured, click **"Explore Interactive Demo Sandbox"** on the login page or set `NEXT_PUBLIC_DEMO_MODE="true"`. This loads realistic seeded data so the 3-pane layout, assistant actions, and animated field typing can be tested immediately!
+> **No Credentials Yet? No Problem!**
+> Click **"Explore Interactive Demo Sandbox"** on the login screen. MailPilot will boot instantly with realistic seeded email data and simulated AI actions!
 
 ---
 
-## Demo Script (10-Step Verification)
+## 🚀 Deploy to Vercel (100% Free)
 
-1. **Sign in**: Click "Continue with Google" (or click "Explore Demo Sandbox").
-2. **Explore Inbox & Sent**: View real messages rendered with avatars, unread indicator dots, and snippets.
-3. **Open AI Copilot**: Click the Copilot toggle in the sidebar or mobile floating action button.
-4. **Test Filtering**:
-   - Prompt: *"Show only unread emails from this week"*
-   - Result: `setFilters` executes in the action trace; Inbox visibly filters to unread items from this week.
-5. **Test Navigation**:
-   - Prompt: *"Open the latest email from David"*
-   - Result: `openLatestEmail` executes; message detail view navigates to David's roadmap email.
-6. **Test Context-Aware Reply**:
-   - Prompt: *"Reply to this saying thanks, I'll review it today"*
-   - Result: `prepareReply` opens Compose with `To` prefilled, subject `Re: ...`, and quoted thread body.
-7. **The "Wow" Moment (Live Animated Compose)**:
-   - Prompt: *"Send an email to john@example.com with subject Meeting Tomorrow and body Let's meet at 3pm."*
-   - Result: Compose window opens; recipient, subject, and body animate typing in live with natural cadence!
-8. **Send Confirmation UX**:
-   - Result: In-feed Send Confirmation Card appears with recipient preview and explicit "Send Now" button.
-   - Click **Send Now** -> Email dispatches via RFC 2822 MIME and appears in your Sent folder.
-9. **Real-Time Sync**:
-   - Send an email into your account from an external mailbox -> background polling picks it up within ~18s without manual refresh.
-10. **Keyboard Navigation**:
-    - Press `j` / `k` to move between emails, `c` to compose, `/` to focus search, and `Cmd/Ctrl + Enter` to send.
+Deploying MailPilot to Vercel takes under 3 minutes:
 
----
+1. Push your code to your GitHub repository.
+2. Go to **[vercel.com/new](https://vercel.com/new)** and import your `mailpilot` repository.
+3. In **Settings > Environment Variables**, add the following 8 variables:
 
-## Architectural Trade-offs
+| Variable | Recommended Value |
+|---|---|
+| `DATABASE_URL` | Your Neon pooled connection string with `&connect_timeout=30&pool_timeout=30` |
+| `GOOGLE_CLIENT_ID` | Your Google OAuth 2.0 Web Client ID |
+| `GOOGLE_CLIENT_SECRET` | Your Google OAuth 2.0 Client Secret |
+| `GEMINI_API_KEY` | Your Google AI Studio API Key |
+| `TOKEN_ENCRYPTION_KEY` | 64-char hex key for AES-256-GCM token storage |
+| `SESSION_SECRET` | Secret string for HMAC-SHA256 session cookie signing |
+| `NEXT_PUBLIC_APP_URL` | `https://your-app.vercel.app` |
+| `NEXT_PUBLIC_DEMO_MODE` | `false` |
 
-1. **Gmail API over IMAP/SMTP**:
-   - The official Gmail REST API provides generous free quotas, native OAuth 2.0 PKCE, granular scopes, and history tracking that avoids heavy IMAP socket connections on serverless platforms like Vercel.
-2. **Next.js App Router (Single Full-Stack Repository)**:
-   - Houses both client UI and server API routes in one repo, simplifying deployment to Vercel's free Hobby tier without requiring a separate Express or Python backend.
-3. **Typed AI Tools over Freeform UI Instructions**:
-   - The Gemini model never emits arbitrary DOM manipulation commands. It calls strict, server-validated tools (`openCompose`, `fillCompose`, `setFilters`, etc.) ensuring 100% testability, deterministic state updates, and total defense against malformed actions.
-4. **Shared Zustand Store**:
-   - Guarantees that manual buttons, keyboard shortcuts, and AI Copilot actions mutate the exact same React state.
-5. **Live Gmail Reads over Persistent Email Caching**:
-   - Stores only encrypted OAuth tokens and sync metadata in PostgreSQL. Live email bodies remain with Gmail, minimizing sensitive data at rest and eliminating compliance burdens.
-6. **Polling `history.list` over Cloud Pub/Sub Webhooks**:
-   - Google Cloud Pub/Sub push notifications require GCP billing to be activated. By using visibility-aware background polling on `history.list`, MailPilot remains **100% free with zero credit card required anywhere**.
+4. Click **Deploy**.
+5. Once your deployment is live, go to **[Google Cloud Console Credentials](https://console.cloud.google.com/apis/credentials)**, click your OAuth Client ID, and add your Vercel callback URI to **Authorized redirect URIs**:
+   ```text
+   https://your-app.vercel.app/api/auth/google/callback
+   ```
+   and your domain to **Authorized JavaScript origins**:
+   ```text
+   https://your-app.vercel.app
+   ```
+6. Click **Save**, open your Vercel URL, and sign in with Google!
 
 ---
 
-## Automated Test Suite
+## 🧪 Automated Test Suite
 
-Run the full Vitest suite:
+MailPilot includes a complete test suite covering cryptography, MIME generation, Gmail search compilation, and AI tool validation.
+
+Run tests using Vitest:
 ```bash
-npm run test
+npm test
 ```
 
-Coverage:
-- `tests/unit/crypto.test.ts` — AES-256-GCM encryption/decryption, PKCE challenge derivation, state tokens.
-- `tests/unit/mime-builder.test.ts` — RFC 2822 formatting, RFC 2047 headers, base64url encoding, reply threading.
-- `tests/unit/search-compiler.test.ts` — Safe structured filter to Gmail query compiler, sanitization.
-- `tests/unit/sync-engine.test.ts` — Background polling, stale history 404 recovery, idempotency.
-- `tests/unit/tool-validator.test.ts` — 11 typed tool definitions, Gemini schemas, context serialization.
-- `tests/unit/prompt-injection.test.ts` — Prompt-injection defenses, backtick escaping, length truncation.
+### Test Coverage Summary:
+- `tests/unit/crypto.test.ts` — AES-256-GCM encryption/decryption, 96-bit IV, 128-bit auth tags, PKCE challenges.
+- `tests/unit/mime-builder.test.ts` — RFC 2822 message formatting, RFC 2047 header encoding, base64url compliance.
+- `tests/unit/search-compiler.test.ts` — Gmail search query compilation, SQL injection & symbol sanitization.
+- `tests/unit/sync-engine.test.ts` — History polling synchronization, expired `historyId` 404 recovery.
+- `tests/unit/tool-validator.test.ts` — Validation of all 11 typed tool definitions, Gemini API schemas.
+- `tests/unit/prompt-injection.test.ts` — Isolation of untrusted email inputs and boundary escaping.
+
+---
+
+## 📂 Project Directory Structure
+
+```
+mailpilot/
+├── docs/
+│   └── screenshots/              # High-res product screenshots & banners
+├── prisma/
+│   └── schema.prisma             # User, OAuthAccount, MailSyncState schemas
+├── src/
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── assistant/        # AI Copilot turn execution route
+│   │   │   ├── auth/             # Google OAuth start, callback, logout, me
+│   │   │   └── mail/             # Messages, search, send, sync routes
+│   │   ├── login/                # Dark-mode login & sandbox entry
+│   │   ├── mail/                 # Primary 3-pane email application
+│   │   ├── layout.tsx            # Root layout & providers
+│   │   └── page.tsx              # Root redirection
+│   ├── components/
+│   │   ├── assistant/            # Copilot panel, message cards, confirmation
+│   │   ├── mail/                 # MessageList, MessageDetail, Compose, Sync
+│   │   └── ui/                   # Reusable Radix UI components & skeletons
+│   ├── hooks/
+│   │   └── useKeyboardShortcuts  # Global c, j, k, /, Esc shortcut handler
+│   ├── lib/
+│   │   ├── ai/                   # Gemini 3.6 Flash client, prompts, tool defs
+│   │   ├── auth/                 # Google OAuth, PKCE, signed session cookies
+│   │   ├── db/                   # Prisma client singleton & connection pooling
+│   │   ├── gmail/                # Gmail client, message formatter, MIME builder
+│   │   └── security/             # AES-256-GCM cipher, input sanitizer
+│   ├── state/
+│   │   ├── assistant-store.ts    # AI conversation, trace, and tool execution
+│   │   └── mail-store.ts         # Centralized Zustand mail store
+│   └── types/                    # TypeScript interfaces for auth, mail, assistant
+├── tests/
+│   └── unit/                     # 31 Vitest unit tests
+├── .env.example                  # Environment variable blueprint
+├── package.json
+└── README.md
+```
+
+---
+
+## 📄 License
+
+This project is open-source software licensed under the **[MIT License](LICENSE)**.
+
+---
+
+<div align="center">
+  <b>Built with ❤️ for high-performance Gmail productivity.</b><br/>
+  Powered by <b>Next.js</b>, <b>Google Gemini 3.6 Flash</b>, and <b>Neon Postgres</b>.
+</div>
